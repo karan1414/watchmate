@@ -1,33 +1,70 @@
-from rest_framework import generics, mixins, status
+from django.forms import ValidationError
+from django.shortcuts import get_object_or_404
+from rest_framework import generics, mixins, status, viewsets
+from rest_framework.permissions import (IsAuthenticated,
+                                        IsAuthenticatedOrReadOnly)
 from rest_framework.response import Response
 # from rest_framework.decorators import api_view
 from rest_framework.views import APIView
 
+from watchlist_app.api.permissions import AdminOrReadOnly, ReviewOrReadOnly
 from watchlist_app.api.serializers import (ReviewsSerializer,
                                            StreamPlatformSerializer,
                                            WatchListSerializer)
 from watchlist_app.models import Reviews, StreamPlatform, WatchList
 
 
-class ReviewDetail(mixins.RetrieveModelMixin, generics.GenericAPIView):
-    """ Details for a particular review """
-    queryset = Reviews.objects.all()
+class ReviewCreate(generics.CreateAPIView):
     serializer_class = ReviewsSerializer
 
-    def get(self, request, *args, **kwargs):
-        return self.retrieve(request, *args, **kwargs)
+    def get_queryset(self):
+        return Reviews.objects.all()
 
+    def perform_create(self, serializer):
+        pk = self.kwargs.get('pk')
+        watchlist = WatchList.objects.get(pk=pk)
 
-class ReviewList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.GenericAPIView):
-    """ Reviews list """
+        review_user = self.request.user
+        review_queryset = Reviews.objects.filter(watchlist=watchlist, review_user=review_user)
+
+        if review_queryset.exists():
+            raise ValidationError("You have already reviewed this !")
+
+        watchlist.validated_data['review_count'] = watchlist.review_count + 1
+
+        watchlist.average_rating = (watchlist.average_rating + serializer.validated_data['review_count'])/ watchlist.review_count
+
+        watchlist.save()
+        serializer.save(watchlist=watchlist, review_user=review_user)
+
+class ReviewList(generics.ListCreateAPIView):
     queryset = Reviews.objects.all()
     serializer_class = ReviewsSerializer
+    # permission_classes = [ReviewOrReadOnly]
+
+class ReviewDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Reviews.objects.all()
+    serializer_class = ReviewsSerializer
+    permission_classes = [ReviewOrReadOnly]
+
+# class ReviewDetail(mixins.RetrieveModelMixin, generics.GenericAPIView):
+#     """ Details for a particular review """
+#     queryset = Reviews.objects.all()
+#     serializer_class = ReviewsSerializer
+
+#     def get(self, request, *args, **kwargs):
+#         return self.retrieve(request, *args, **kwargs)
+
+# class ReviewList(mixins.ListModelMixin, mixins.CreateModelMixin, generics.GenericAPIView):
+#     """ Reviews list """
+#     queryset = Reviews.objects.all()
+#     serializer_class = ReviewsSerializer
     
-    def get(self, request, *args, **kwargs):
-        return self.list(request, *args, **kwargs)
+#     def get(self, request, *args, **kwargs):
+#         return self.list(request, *args, **kwargs)
     
-    def post(self, request, *args, **kwargs):
-        return self.create(request, *args, **kwargs)
+#     def post(self, request, *args, **kwargs):
+#         return self.create(request, *args, **kwargs)
 
 class WatchListAV(APIView):
     """ The list of movies"""
@@ -74,6 +111,27 @@ class WatchListDetailAv(APIView):
         except WatchList.DoesNotExist:
             return Response({"Error": "Movie not found!"}, status=status.HTTP_400_BAD_REQUEST)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+# class StreamingPlatformViewVS(viewsets.ViewSet):
+
+#     def list(self, request):
+#         queryset = StreamPlatform.objects.all()
+
+#         serializer = StreamPlatformSerializer(queryset, many=True)
+#         return Response(serializer.data)
+    
+#     def retrieve(self, request, pk=None):
+#         queryset = StreamPlatform.objects.all()
+#         watchlist = get_object_or_404(queryset, pk=pk)
+#         serializer = StreamPlatformSerializer(watchlist)
+#         return Response(serializer.data)
+
+class StreamingPlatformViewVS(viewsets.ModelViewSet):
+
+    queryset = StreamPlatform.objects.all()
+    serializer_class = StreamPlatformSerializer
+        
+
 
 class StreamingPlatformListAV(APIView):
 
