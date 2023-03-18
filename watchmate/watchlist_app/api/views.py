@@ -16,6 +16,7 @@ from watchlist_app.models import Reviews, StreamPlatform, WatchList
 
 class ReviewCreate(generics.CreateAPIView):
     serializer_class = ReviewsSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return Reviews.objects.all()
@@ -30,17 +31,20 @@ class ReviewCreate(generics.CreateAPIView):
         if review_queryset.exists():
             raise ValidationError("You have already reviewed this !")
 
-        watchlist.validated_data['review_count'] = watchlist.review_count + 1
+        watchlist.review_count = watchlist.review_count + 1
 
-        watchlist.average_rating = (watchlist.average_rating + serializer.validated_data['review_count'])/ watchlist.review_count
+        watchlist.average_rating = (watchlist.average_rating + serializer.validated_data['rating'])/ watchlist.review_count
 
         watchlist.save()
         serializer.save(watchlist=watchlist, review_user=review_user)
 
-class ReviewList(generics.ListCreateAPIView):
-    queryset = Reviews.objects.all()
+class ReviewList(generics.ListAPIView):
+    # queryset = Reviews.objects.all()
     serializer_class = ReviewsSerializer
-    # permission_classes = [ReviewOrReadOnly]
+    # permission_classes = [IsAuthenticated]
+    def get_queryset(self):
+        pk = self.kwargs['pk']
+        return Reviews.objects.filter(watchList=pk)
 
 class ReviewDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = Reviews.objects.all()
@@ -68,6 +72,8 @@ class ReviewDetail(generics.RetrieveUpdateDestroyAPIView):
 
 class WatchListAV(APIView):
     """ The list of movies"""
+    permission_classes = [AdminOrReadOnly]
+
     def get(self,request):
         movies = WatchList.objects.all()        
         serializer = WatchListSerializer(movies, many=True)
@@ -82,7 +88,7 @@ class WatchListAV(APIView):
 
 class WatchListDetailAv(APIView):
     """ Details of one movie """
-
+    permission_classes = [AdminOrReadOnly]
     def get(self, request, pk):
         try:
             movie = WatchList.objects.get(pk=pk)
@@ -130,7 +136,7 @@ class StreamingPlatformViewVS(viewsets.ModelViewSet):
 
     queryset = StreamPlatform.objects.all()
     serializer_class = StreamPlatformSerializer
-        
+    permission_classes = [AdminOrReadOnly]        
 
 
 class StreamingPlatformListAV(APIView):
@@ -149,6 +155,7 @@ class StreamingPlatformListAV(APIView):
         return Response(serializer.errors, status=status.HTTP_404_NOT_FOUND)
 
 class StreamingPlatformDetailAV(APIView):
+    permission_classes = [AdminOrReadOnly]
 
     def get(self, request, pk):
         try:
