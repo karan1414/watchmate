@@ -6,6 +6,9 @@ from rest_framework.response import Response
 from user_app import models
 from user_app.api.serializers import UserRegistrationSerializer
 
+# from rest_framework_simplejwt.tokens import RefreshToken
+
+
 
 @api_view(["POST",])
 def logout_view(request):
@@ -29,6 +32,11 @@ def registration_view(request):
 
             token = Token.objects.get(user=user).key
             data['token'] = token
+            # refresh = RefreshToken.for_user(user)
+            # data['token'] = {
+            #     "refresh": str(refresh),
+            #     "access": str(refresh.access_token),
+            # }
         else:
             data = serializer.errors
         return Response(data)
